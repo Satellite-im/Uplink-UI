@@ -198,17 +198,20 @@ fn app(cx: Scope) -> Element {
         style { "{UIKIT_STYLES} {APP_STYLE}" },
         div {
             id: "app-wrap",
-            state.read().ui.toast_notifications.iter().map(|(id, toast)| {
-                rsx! (
-                    Toast {
-                        id: *id,
-                        with_title: toast.title.clone(),
-                        with_content: toast.content.clone(),
-                        icon: toast.icon.unwrap_or(Icon::InformationCircle),
-                        appearance: Appearance::Secondary,
-                    },
-                )
-            }),
+            div {
+                class: "toast-container",
+                state.read().ui.toast_notifications.iter().map(|(id, toast)| {
+                    rsx! (
+                        Toast {
+                            id: *id,
+                            with_title: toast.title.clone(),
+                            with_content: toast.content.clone(),
+                            icon: toast.icon.unwrap_or(Icon::InformationCircle),
+                            appearance: Appearance::Secondary,
+                        },
+                    )
+                })
+            },
             // CallDialog {
             //     caller: cx.render(rsx!(UserImage {
             //         platform: Platform::Mobile,

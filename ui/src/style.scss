@@ -11,6 +11,14 @@ html, body {
     margin: 0;
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
+
+    .toast-container {
+        position: fixed;
+        top: var(--gap);
+        right: var(--gap);
+        display: inline-flex;
+        flex-direction: column;
+    }
 }
 
 #pre-release {
