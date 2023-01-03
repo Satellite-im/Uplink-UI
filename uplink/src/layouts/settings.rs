@@ -30,23 +30,27 @@ pub mod settings {
                         to.set(p);
                     }
                 },
-                match to.get() {
-                    Page::General       => cx.render(rsx! (
-                        GeneralSettings {}
-                    )),
-                    Page::Audio         => cx.render(rsx! (
-                        AudioSettings {}
-                    )),
-                    Page::Privacy       => cx.render(rsx! (
-                        PrivacySettings {}
-                    )),
-                    Page::Extensions    => cx.render(rsx! (
-                        ExtensionSettings {}
-                    )),
-                    Page::Developer     => cx.render(rsx! (
-                        DeveloperSettings {}
-                    ))
+                span {
+                    id: "content",
+                    match to.get() {
+                        Page::General       => cx.render(rsx! (
+                            GeneralSettings {}
+                        )),
+                        Page::Audio         => cx.render(rsx! (
+                            AudioSettings {}
+                        )),
+                        Page::Privacy       => cx.render(rsx! (
+                            PrivacySettings {}
+                        )),
+                        Page::Extensions    => cx.render(rsx! (
+                            ExtensionSettings {}
+                        )),
+                        Page::Developer     => cx.render(rsx! (
+                            DeveloperSettings {}
+                        ))
+                    }
                 }
+
             }
         ))
     }

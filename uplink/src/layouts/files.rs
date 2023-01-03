@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use fluent_templates::Loader;
 use ui_kit::{
+    components::nav::Nav,
     elements::{
         button::Button,
         file::File,
@@ -14,7 +15,7 @@ use ui_kit::{
 
 use crate::{
     components::chat::{sidebar::Sidebar as ChatSidebar, RouteInfo},
-    LOCALES, APP_LANG,
+    APP_LANG, LOCALES,
 };
 
 #[derive(PartialEq, Props)]
@@ -141,8 +142,15 @@ pub fn FilesLayout(cx: Scope<Props>) -> Element {
                     Folder {
                         text: "New Fake".into(),
                     }
+                },
+                Nav {
+                    routes: cx.props.route_info.routes.clone(),
+                    active: cx.props.route_info.active.clone(),
+                    onnavigate: move |r| {
+                        use_router(&cx).replace_route(r, None, None);
+                    }
                 }
-            }
-        }
+            },
+        },
     ))
 }
