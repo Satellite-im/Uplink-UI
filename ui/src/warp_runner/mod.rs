@@ -21,9 +21,13 @@ use crate::{
     WARP_PATH,
 };
 
-use self::commands::WarpCmd;
+pub use self::{
+    commands::WarpCmd,
+    ui_adapter::{MultiPassEvent, RayGunEvent},
+};
 
 pub mod commands;
+mod ui_adapter;
 
 pub type WarpCmdTx = UnboundedSender<WarpCmd>;
 pub type WarpCmdRx = Arc<Mutex<UnboundedReceiver<WarpCmd>>>;
@@ -36,8 +40,8 @@ type Messaging = Box<dyn RayGun>;
 
 #[allow(clippy::large_enum_variant)]
 pub enum WarpEvent {
-    RayGun(RayGunEventKind),
-    MultiPass(MultiPassEventKind),
+    RayGun(RayGunEvent),
+    MultiPass(MultiPassEvent),
 }
 
 pub struct WarpRunner {
@@ -112,6 +116,7 @@ impl WarpRunner {
                 tokio::select! {
                     opt = multipass_stream.next() => {
                         if let Some(evt) = opt {
+                            let evt = ui_adapter::convert_multipass_event(evt, &mut account, &mut messaging).await;
                             if tx.send(WarpEvent::MultiPass(evt)).is_err() {
                                 break;
                             }
@@ -119,6 +124,7 @@ impl WarpRunner {
                     },
                     opt = raygun_stream.next() => {
                         if let Some(evt) = opt {
+                            let evt = ui_adapter::convert_raygun_event(evt, &mut account, &mut messaging).await;
                             if tx.send(WarpEvent::RayGun(evt)).is_err() {
                                 break;
                             }

@@ -18,7 +18,11 @@ pub use route::Route;
 pub use settings::Settings;
 pub use ui::{Theme, ToastNotification, UI};
 
-use crate::{testing::mock::generate_mock, warp_runner::WarpEvent, UPLINK_PATH};
+use crate::{
+    testing::mock::generate_mock,
+    warp_runner::{MultiPassEvent, RayGunEvent, WarpEvent},
+    UPLINK_PATH,
+};
 use either::Either;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -265,11 +269,11 @@ impl State {
     }
 
     fn new_incoming_request(&mut self, identity: &Identity) {
-        self.friends.incoming_requests.push(identity.clone());
+        self.friends.incoming_requests.insert(identity.clone());
     }
 
     fn new_outgoing_request(&mut self, identity: &Identity) {
-        self.friends.outgoing_requests.push(identity.clone());
+        self.friends.outgoing_requests.insert(identity.clone());
     }
 
     fn block(&mut self, identity: &Identity) {
@@ -656,25 +660,20 @@ impl State {
         let _ = self.save();
     }
 
-    fn process_multipass_event(&mut self, event: MultiPassEventKind) {
+    fn process_multipass_event(&mut self, event: MultiPassEvent) {
         match event {
-            MultiPassEventKind::FriendRequestReceived { from } => {}
-            MultiPassEventKind::FriendRequestSent { to } => {}
-            MultiPassEventKind::IncomingFriendRequestRejected { did } => {}
-            MultiPassEventKind::OutgoingFriendRequestRejected { did } => {}
-            MultiPassEventKind::IncomingFriendRequestClosed { did } => {}
-            MultiPassEventKind::OutgoingFriendRequestClosed { did } => {}
-            MultiPassEventKind::FriendAdded { did } => {}
-            MultiPassEventKind::FriendRemoved { did } => {}
-            MultiPassEventKind::IdentityOnline { did } => {}
-            MultiPassEventKind::IdentityOffline { did } => {}
+            MultiPassEvent::FriendRequestReceived(identity) => {
+                self.friends.incoming_requests.insert(identity);
+            }
+            MultiPassEvent::FriendRequestSent(identity) => {
+                self.friends.outgoing_requests.insert(identity);
+            }
         }
     }
 
-    fn process_raygun_event(&mut self, event: RayGunEventKind) {
+    fn process_raygun_event(&mut self, event: RayGunEvent) {
         match event {
-            RayGunEventKind::ConversationCreated { conversation_id } => {}
-            RayGunEventKind::ConversationDeleted { conversation_id } => {}
+            _ => todo!(),
         }
     }
 }

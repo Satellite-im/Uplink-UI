@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use warp::crypto::DID;
 
 use super::identity::Identity;
@@ -14,7 +14,7 @@ pub struct Friends {
     pub blocked: Vec<Identity>,
     // Friend requests, incoming and outgoing.
     #[serde(default)]
-    pub incoming_requests: Vec<Identity>,
+    pub incoming_requests: HashSet<Identity>,
     #[serde(default)]
-    pub outgoing_requests: Vec<Identity>,
+    pub outgoing_requests: HashSet<Identity>,
 }
