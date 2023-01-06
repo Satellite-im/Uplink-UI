@@ -658,27 +658,23 @@ impl State {
 
     fn process_multipass_event(&mut self, event: MultiPassEventKind) {
         match event {
-            MultiPassEventKind::FriendRequestReceived { from: DID } => {}
-            MultiPassEventKind::FriendRequestSent { to: DID } => {}
-            MultiPassEventKind::IncomingFriendRequestRejected { did: DID } => {}
-            MultiPassEventKind::OutgoingFriendRequestRejected { did: DID } => {}
-            MultiPassEventKind::IncomingFriendRequestClosed { did: DID } => {}
-            MultiPassEventKind::OutgoingFriendRequestClosed { did: DID } => {}
-            MultiPassEventKind::FriendAdded { did: DID } => {}
-            MultiPassEventKind::FriendRemoved { did: DID } => {}
-            MultiPassEventKind::IdentityOnline { did: DID } => {}
-            MultiPassEventKind::IdentityOffline { did: DID } => {}
+            MultiPassEventKind::FriendRequestReceived { from } => {}
+            MultiPassEventKind::FriendRequestSent { to } => {}
+            MultiPassEventKind::IncomingFriendRequestRejected { did } => {}
+            MultiPassEventKind::OutgoingFriendRequestRejected { did } => {}
+            MultiPassEventKind::IncomingFriendRequestClosed { did } => {}
+            MultiPassEventKind::OutgoingFriendRequestClosed { did } => {}
+            MultiPassEventKind::FriendAdded { did } => {}
+            MultiPassEventKind::FriendRemoved { did } => {}
+            MultiPassEventKind::IdentityOnline { did } => {}
+            MultiPassEventKind::IdentityOffline { did } => {}
         }
     }
 
     fn process_raygun_event(&mut self, event: RayGunEventKind) {
         match event {
-            RayGunEventKind::ConversationCreated {
-                conversation_id: Uuid,
-            } => {}
-            RayGunEventKind::ConversationDeleted {
-                conversation_id: Uuid,
-            } => {}
+            RayGunEventKind::ConversationCreated { conversation_id } => {}
+            RayGunEventKind::ConversationDeleted { conversation_id } => {}
         }
     }
 }
