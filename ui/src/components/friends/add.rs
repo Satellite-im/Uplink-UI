@@ -20,6 +20,7 @@ use crate::{
 
 #[allow(non_snake_case)]
 pub fn AddFriend(cx: Scope) -> Element {
+    let warp_cmd_tx = WARP_CMD_CH.0.clone();
     let friend_input = use_state(cx, String::new);
     let friend_input_valid = use_state(cx, || false);
 
@@ -35,8 +36,6 @@ pub fn AddFriend(cx: Scope) -> Element {
         no_whitespace: true,
     };
 
-    let warp_cmd_tx = WARP_CMD_CH.0.clone();
-
     let ch = use_coroutine(cx, |mut rx: UnboundedReceiver<DID>| {
         to_owned![warp_cmd_tx];
         async move {
@@ -49,10 +48,11 @@ pub fn AddFriend(cx: Scope) -> Element {
                     }))
                     .expect("AddFriendLayout failed to send warp command");
 
+                // warp events will be generated when the friend request is successfully sent, accepted, and rejected.
+                // only care if the request couldn't be processed
                 let res = rx.await.expect("failed to get response from warp_runner");
-                match res {
-                    Ok(_) => todo!("update ui to say request was sent"),
-                    Err(_) => todo!("failed to send friend request"),
+                if let Err(_e) = res {
+                    todo!("failed to send friend request")
                 }
             }
         }

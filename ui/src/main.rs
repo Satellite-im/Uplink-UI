@@ -242,10 +242,10 @@ fn app(cx: Scope) -> Element {
             // the future restarts (it shouldn't), the lock should be dropped and this wouldn't block.
             let mut ch = warp_event_rx.lock().await;
             while let Some(evt) = ch.recv().await {
-                if warp_runner::handle_event(inner.clone(), evt).await {
-                    let flag = *toggle.current();
-                    toggle.set(!flag);
-                }
+                // is this even safe?
+                (inner.borrow_mut()).write().process_warp_event(evt);
+                let flag = *toggle.current();
+                toggle.set(!flag);
             }
         }
     });

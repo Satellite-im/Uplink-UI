@@ -18,7 +18,7 @@ pub use route::Route;
 pub use settings::Settings;
 pub use ui::{Theme, ToastNotification, UI};
 
-use crate::{testing::mock::generate_mock, UPLINK_PATH};
+use crate::{testing::mock::generate_mock, warp_runner::WarpEvent, UPLINK_PATH};
 use either::Either;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,7 +26,11 @@ use std::{
     fmt, fs,
 };
 use uuid::Uuid;
-use warp::{crypto::DID, raygun::Message};
+use warp::{
+    crypto::DID,
+    multipass::MultiPassEventKind,
+    raygun::{Message, RayGunEventKind},
+};
 
 use self::{action::ActionHook, chats::Direction, ui::Call};
 
@@ -638,6 +642,44 @@ impl State {
 
     pub fn mock() -> State {
         generate_mock()
+    }
+}
+
+impl State {
+    pub fn process_warp_event(&mut self, event: WarpEvent) {
+        // handle any number of events and then save
+        match event {
+            WarpEvent::MultiPass(evt) => self.process_multipass_event(evt),
+            WarpEvent::RayGun(evt) => self.process_raygun_event(evt),
+        };
+
+        let _ = self.save();
+    }
+
+    fn process_multipass_event(&mut self, event: MultiPassEventKind) {
+        match event {
+            MultiPassEventKind::FriendRequestReceived { from: DID } => {}
+            MultiPassEventKind::FriendRequestSent { to: DID } => {}
+            MultiPassEventKind::IncomingFriendRequestRejected { did: DID } => {}
+            MultiPassEventKind::OutgoingFriendRequestRejected { did: DID } => {}
+            MultiPassEventKind::IncomingFriendRequestClosed { did: DID } => {}
+            MultiPassEventKind::OutgoingFriendRequestClosed { did: DID } => {}
+            MultiPassEventKind::FriendAdded { did: DID } => {}
+            MultiPassEventKind::FriendRemoved { did: DID } => {}
+            MultiPassEventKind::IdentityOnline { did: DID } => {}
+            MultiPassEventKind::IdentityOffline { did: DID } => {}
+        }
+    }
+
+    fn process_raygun_event(&mut self, event: RayGunEventKind) {
+        match event {
+            RayGunEventKind::ConversationCreated {
+                conversation_id: Uuid,
+            } => {}
+            RayGunEventKind::ConversationDeleted {
+                conversation_id: Uuid,
+            } => {}
+        }
     }
 }
 
