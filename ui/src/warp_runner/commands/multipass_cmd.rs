@@ -1,19 +1,7 @@
 use futures::channel::oneshot;
-use warp::tesseract::Tesseract;
+use warp::{crypto::DID, tesseract::Tesseract};
 
-use super::Account;
-
-#[derive(Debug)]
-pub enum TesseractCmd {
-    KeyExists {
-        key: String,
-        rsp: oneshot::Sender<bool>,
-    },
-    Unlock {
-        passphrase: String,
-        rsp: oneshot::Sender<Result<(), warp::error::Error>>,
-    },
-}
+use crate::warp_runner::Account;
 
 #[derive(Debug)]
 pub enum MultiPassCmd {
@@ -22,22 +10,10 @@ pub enum MultiPassCmd {
         passphrase: String,
         rsp: oneshot::Sender<Result<(), warp::error::Error>>,
     },
-}
-
-pub async fn handle_tesseract_cmd(cmd: TesseractCmd, tesseract: &mut Tesseract) {
-    match cmd {
-        TesseractCmd::KeyExists { key, rsp } => {
-            let res = tesseract.exist(&key);
-            let _ = rsp.send(res);
-        }
-        TesseractCmd::Unlock { passphrase, rsp } => {
-            let r = match tesseract.unlock(passphrase.as_bytes()) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e),
-            };
-            let _ = rsp.send(r);
-        }
-    }
+    RequestFriend {
+        did: DID,
+        rsp: oneshot::Sender<Result<(), warp::error::Error>>,
+    },
 }
 
 pub async fn handle_multipass_cmd(
@@ -56,6 +32,13 @@ pub async fn handle_multipass_cmd(
                 return;
             }
             let r = match account.create_identity(Some(&username), None).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e),
+            };
+            let _ = rsp.send(r);
+        }
+        MultiPassCmd::RequestFriend { did, rsp } => {
+            let r = match account.send_request(&did).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e),
             };

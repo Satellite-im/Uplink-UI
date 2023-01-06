@@ -11,7 +11,7 @@ use kit::{
 };
 
 use crate::{
-    warp_runner::{commands::MultiPassCmd, WarpCmd},
+    warp_runner::commands::{MultiPassCmd, WarpCmd},
     CHAT_ROUTE, WARP_CMD_CH,
 };
 
@@ -61,7 +61,7 @@ pub fn AuthLayout(cx: Scope) -> Element {
                         passphrase,
                         rsp: tx,
                     }))
-                    .expect("UnlockLayout failed to send warp command");
+                    .expect("AuthLayout failed to send warp command");
 
                 let res = rx.await.expect("failed to get response from warp_runner");
 

@@ -23,7 +23,7 @@ use crate::{
     WARP_PATH,
 };
 
-use self::commands::{MultiPassCmd, TesseractCmd};
+use self::commands::WarpCmd;
 
 pub mod commands;
 
@@ -40,12 +40,6 @@ type Messaging = Box<dyn RayGun>;
 pub enum WarpEvent {
     RayGun(RayGunEventKind),
     MultiPass(MultiPassEventKind),
-}
-
-#[derive(Debug)]
-pub enum WarpCmd {
-    Tesseract(TesseractCmd),
-    MultiPass(MultiPassCmd),
 }
 
 pub struct WarpRunner {
