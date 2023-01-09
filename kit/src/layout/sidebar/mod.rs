@@ -1,5 +1,4 @@
 use dioxus::prelude::*;
-
 #[derive(Props)]
 pub struct Props<'a> {
     #[props(optional)]

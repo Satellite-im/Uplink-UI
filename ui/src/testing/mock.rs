@@ -61,6 +61,7 @@ pub fn generate_mock() -> State {
             popout_player: false,
             toast_notifications,
             theme: None,
+            sidebar: true,
             // TODO: Until this is more functional, we should keep it disabled by default.
             enable_overlay: false,
         },

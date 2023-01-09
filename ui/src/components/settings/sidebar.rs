@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use dioxus::prelude::*;
 use dioxus_router::*;
 use kit::{
@@ -10,6 +8,7 @@ use kit::{
     layout::sidebar::Sidebar as ReusableSidebar,
 };
 use shared::language::get_local_text;
+use std::str::FromStr;
 
 use crate::{components::chat::RouteInfo, state::State};
 
@@ -105,6 +104,8 @@ pub fn Sidebar<'a>(cx: Scope<'a, Props<'a>>) -> Element<'a> {
     ];
 
     let active_route = routes[0].clone();
+    let state = use_shared_state::<State>(cx)?;
+    // let showself = while state.read().ui.sidebar { "nothere"; break}
     cx.render(rsx!(
         ReusableSidebar {
             with_search: cx.render(rsx!(
@@ -120,7 +121,7 @@ pub fn Sidebar<'a>(cx: Scope<'a, Props<'a>>) -> Element<'a> {
                             ..Options::default()
                         }
                     }
-                }
+                },
             ))
             with_nav: cx.render(rsx!(
                 Nav {
@@ -138,7 +139,7 @@ pub fn Sidebar<'a>(cx: Scope<'a, Props<'a>>) -> Element<'a> {
                 onnavigate: move |route| {
                     emit(&cx, Page::from_str(route).unwrap());
                 }
-            }
+            },
         }
     ))
 }

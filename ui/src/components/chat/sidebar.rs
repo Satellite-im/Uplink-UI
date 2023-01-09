@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use shared::language::get_local_text;
 use warp::{raygun::Message};
 use dioxus_router::*;
-use kit::{User as UserInfo, elements::{input::{Input, Options}, label::Label}, icons::Icon, components::{nav::Nav, context_menu::{ContextMenu, ContextItem}, user::User, user_image::UserImage, indicator::{Platform, Status}, user_image_group::UserImageGroup}, layout::sidebar::Sidebar as ReusableSidebar};
+use kit::{User as UserInfo, elements::{Appearance, button::Button, input::{Input, Options}, label::Label}, icons::Icon, components::{nav::Nav, context_menu::{ContextMenu, ContextItem}, user::User, user_image::UserImage, indicator::{Platform, Status}, user_image_group::UserImageGroup}, layout::sidebar::Sidebar as ReusableSidebar};
 
 use crate::{components::{chat::{RouteInfo, welcome::Welcome}, media::remote_control::RemoteControls}, state::{State, Action, Chat, Identity}, CHAT_ROUTE};
 
@@ -74,8 +74,17 @@ pub fn Sidebar(cx: Scope<Props>) -> Element {
     let binding = state.read();
     let active_media_chat = binding.get_active_media_chat();
 
-    cx.render(rsx!(
-        ReusableSidebar {
+    cx.render(rsx!(     
+        Button {
+            icon: Icon::Bars3,
+            appearance: Appearance::Secondary,
+            onpress: move |_| {
+                state.write().toggle_sidebar();
+                println!("{}", state.read().ui.sidebar.to_string())
+            }
+        },
+        state.read().ui.sidebar.then(|| rsx! {
+        ReusableSidebar { 
             with_search: cx.render(rsx!(
                 div {
                     class: "search-input",
@@ -89,8 +98,8 @@ pub fn Sidebar(cx: Scope<Props>) -> Element {
                             with_clear_btn: true,
                             ..Options::default()
                         }
-                    }
-                }
+                    },
+                },
             ))
             with_nav: cx.render(rsx!(
                 Nav {
@@ -327,6 +336,6 @@ pub fn Sidebar(cx: Scope<Props>) -> Element {
                     end_text: get_local_text("remote-controls.end"),
                 }
             )),
-        }
+        }})
     ))
 }
