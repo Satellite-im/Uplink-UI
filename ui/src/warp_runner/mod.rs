@@ -11,7 +11,6 @@ use warp::{
     raygun::{RayGun, RayGunEventStream},
     tesseract::Tesseract,
 };
-use warp::{multipass::MultiPassEventKind, raygun::RayGunEventKind};
 use warp_fs_ipfs::config::FsIpfsConfig;
 use warp_mp_ipfs::config::MpIpfsConfig;
 use warp_rg_ipfs::{config::RgIpfsConfig, Persistent};
