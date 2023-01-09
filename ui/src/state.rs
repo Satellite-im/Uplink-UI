@@ -1,51 +1,308 @@
-pub mod account;
-pub mod action;
-pub mod chats;
-pub mod friends;
-pub mod identity;
-pub mod route;
-pub mod settings;
-pub mod ui;
-
-// export specific structs which the UI expects. these structs used to be in src/state.rs, before state.rs was turned into the `state` folder
-pub use account::Account;
-pub use action::Action;
-pub use chats::{Chat, Chats};
-use dioxus_desktop::tao::window::WindowId;
-pub use friends::Friends;
-pub use identity::Identity;
-pub use route::Route;
-pub use settings::Settings;
-pub use ui::{Theme, ToastNotification, UI};
-
-use crate::{testing::mock::generate_mock, UPLINK_PATH};
+use chrono::{DateTime, Utc};
 use either::Either;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fmt, fs,
+    fs,
+    hash::Hash,
 };
-use uuid::Uuid;
-use warp::{crypto::DID, raygun::Message};
 
-use self::{action::ActionHook, chats::Direction, ui::Call};
+use uuid::Uuid;
+use warp::{
+    constellation::item::Item,
+    crypto::DID,
+    multipass::identity::{Identity as WarpIdentity, IdentityStatus, Platform},
+    raygun::{Message, Reaction},
+};
+
+use kit::icons::Icon;
+
+#[derive(Eq, PartialEq)]
+pub struct MessageDivider {
+    pub timestamp: Option<DateTime<Utc>>,
+}
+
+impl Ord for MessageDivider {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.timestamp.cmp(&other.timestamp)
+    }
+}
+
+impl PartialOrd for MessageDivider {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+pub enum Direction {
+    Incoming,
+    Outgoing,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct ToastNotification {
+    pub title: String,
+    pub content: String,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub icon: Option<Icon>,
+    initial_time: u32,
+    remaining_time: u32,
+}
+
+impl ToastNotification {
+    pub fn init(title: String, content: String, icon: Option<Icon>, timeout: u32) -> Self {
+        Self {
+            title,
+            content,
+            icon,
+            initial_time: timeout,
+            remaining_time: timeout,
+        }
+    }
+    pub fn remaining_time(&self) -> u32 {
+        self.remaining_time
+    }
+
+    pub fn reset_time(&mut self) {
+        self.remaining_time = self.initial_time
+    }
+
+    pub fn decrement_time(&mut self) {
+        if self.remaining_time > 0 {
+            self.remaining_time -= 1;
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Theme {
+    pub filename: String,
+    pub name: String,
+    pub styles: String,
+}
+
+// Define a struct to represent a group of messages from the same sender.
+pub struct MessageGroup {
+    pub sender: DID,
+    pub remote: bool,
+    pub messages: Vec<GroupedMessage>,
+}
+
+// Define a struct to represent a message that has been placed into a group.
+pub struct GroupedMessage {
+    pub message: Message,
+    pub is_first: bool,
+    pub is_last: bool,
+}
+
+pub type Callback = Box<dyn Fn(&State, &Action)>;
+
+// Define a new struct to represent a hook that listens for a specific action type.
+pub struct ActionHook {
+    action_type: Either<Action, Vec<Action>>,
+    callback: Callback,
+}
+
+/// Alias for the type representing a route.
+pub type To = String;
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Account {
+    #[serde(default)]
+    pub identity: Identity,
+    // pub settings: Option<CustomSettings>,
+    // pub profile: Option<Profile>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Eq)]
+pub struct Identity {
+    identity: WarpIdentity,
+    status: IdentityStatus,
+    platform: Platform,
+}
+
+impl Hash for Identity {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.identity.hash(state)
+    }
+}
+
+impl PartialEq for Identity {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity.eq(&other.identity)
+            && self.status.eq(&other.status)
+            && self.platform.eq(&other.platform)
+    }
+}
+
+impl Default for Identity {
+    fn default() -> Self {
+        Self::from(WarpIdentity::default())
+    }
+}
+
+impl From<WarpIdentity> for Identity {
+    fn from(identity: WarpIdentity) -> Self {
+        Identity {
+            identity,
+            status: IdentityStatus::Offline,
+            platform: Default::default(),
+        }
+    }
+}
+
+impl core::ops::Deref for Identity {
+    type Target = WarpIdentity;
+    fn deref(&self) -> &Self::Target {
+        &self.identity
+    }
+}
+
+impl core::ops::DerefMut for Identity {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.identity
+    }
+}
+
+impl Identity {
+    pub fn identity_status(&self) -> IdentityStatus {
+        self.status
+    }
+
+    pub fn platform(&self) -> Platform {
+        self.platform
+    }
+}
+
+impl Identity {
+    pub fn set_identity_status(&mut self, status: IdentityStatus) {
+        self.status = status;
+    }
+
+    pub fn set_platform(&mut self, platform: Platform) {
+        self.platform = platform;
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Route {
+    // String representation of the current active route.
+    #[serde(default)]
+    pub active: To,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct Chat {
+    // Warp generated UUID of the chat
+    // TODO: This should be wired up to warp conversation id's
+    #[serde(default)]
+    pub id: Uuid,
+    // Warp generated UUID of the chat
+    #[serde(default)]
+    pub active_media: bool, // TODO: in the future, this should probably be a vec of media streams or something
+    // Includes the list of participants within a given chat.
+    #[serde(default)]
+    pub participants: Vec<Identity>,
+    // Messages should only contain messages we want to render. Do not include the entire message history.
+    #[serde(default)]
+    pub messages: Vec<Message>,
+    // Unread count for this chat, should be cleared when we view the chat.
+    #[serde(default)]
+    pub unreads: u32,
+    // If a value exists, we will render the message we're replying to above the chatbar
+    #[serde(default)]
+    pub replying_to: Option<Message>,
+}
+
+// TODO: Properly wrap data which is expected to persist remotely in options, so we can know if we're still figuring out what exists "remotely", i.e. loading.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Chats {
+    // All active chats from warp.
+    #[serde(default)]
+    pub all: HashMap<Uuid, Chat>,
+    // Chat to display / interact with currently.
+    #[serde(default)]
+    pub active: Option<Uuid>,
+    // Chats to show in the sidebar
+    #[serde(default)]
+    pub in_sidebar: Vec<Uuid>,
+    // Favorite Chats
+    #[serde(default)]
+    pub favorites: Vec<Uuid>,
+}
+
+// TODO: Properly wrap data which is expected to persist remotely in options, so we can know if we're still figuring out what exists "remotely", i.e. loading.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Friends {
+    // All active friends.
+    #[serde(default)]
+    pub all: HashMap<DID, Identity>,
+    // List of friends the user has blocked
+    #[serde(default)]
+    pub blocked: Vec<Identity>,
+    // Friend requests, incoming and outgoing.
+    #[serde(default)]
+    pub incoming_requests: Vec<Identity>,
+    #[serde(default)]
+    pub outgoing_requests: Vec<Identity>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Files {
+    // All files
+    #[serde(default)]
+    pub all: Vec<Item>,
+    // Optional, active folder.
+    #[serde(default)]
+    pub active_folder: Option<Item>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Settings {
+    // Selected Language
+    #[serde(default)]
+    pub language: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct UI {
+    // Should the active video play in popout?
+    #[serde(default)]
+    pub popout_player: bool,
+    #[serde(default)]
+    pub muted: bool,
+    #[serde(default)]
+    pub silenced: bool,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub toast_notifications: HashMap<Uuid, ToastNotification>,
+    #[serde(default)]
+    pub theme: Option<Theme>,
+    #[serde(default)]
+    pub enable_overlay: bool,
+    #[serde(default)]
+    pub sidebar: bool,
+}
+
+use std::fmt;
+
+use crate::testing::mock::generate_mock;
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct State {
     #[serde(default)]
-    pub account: account::Account,
+    pub account: Account,
     #[serde(default)]
-    pub route: route::Route,
+    pub route: Route,
     #[serde(default)]
-    pub chats: chats::Chats,
+    pub chats: Chats,
     #[serde(default)]
-    pub friends: friends::Friends,
+    pub friends: Friends,
     #[serde(default)]
-    pub settings: settings::Settings,
+    pub settings: Settings,
     #[serde(default)]
-    pub ui: ui::UI,
+    pub ui: UI,
     #[serde(skip_serializing, skip_deserializing)]
-    pub(crate) hooks: Vec<action::ActionHook>,
+    pub(crate) hooks: Vec<ActionHook>,
 }
 
 impl fmt::Debug for State {
@@ -107,22 +364,24 @@ impl State {
     /// Updates the display of the overlay
     fn toggle_overlay(&mut self, enabled: bool) {
         self.ui.enable_overlay = enabled;
-        if !enabled {
-            self.ui.clear_overlays();
+    }
+
+    /// Toggles the display of media on the provided chat in the `State` struct.
+    fn toggle_media(&mut self, chat: &Chat) {
+        if let Some(c) = self.chats.all.get_mut(&chat.id) {
+            c.active_media = !c.active_media;
+            // When we "close" active media, we should hide the popout player.
+            if !c.active_media {
+                self.ui.popout_player = false;
+            }
         }
     }
 
-    /// Sets the active media to the specified conversation id
-    fn set_active_media(&mut self, id: Uuid) {
-        self.chats.active_media = Some(id);
-        self.ui.current_call = Some(Call::new(None));
-    }
-
-    /// Analogous to Hang Up
-    fn disable_media(&mut self) {
-        self.chats.active_media = None;
+    fn disable_all_active_media(&mut self) {
+        for (_, chat) in self.chats.all.iter_mut() {
+            chat.active_media = false;
+        }
         self.ui.popout_player = false;
-        self.ui.current_call = None;
     }
 
     /// Adds a chat to the sidebar in the `State` struct.
@@ -153,8 +412,10 @@ impl State {
     }
 
     /// Removes the given chat from the user's favorites.
-    fn unfavorite(&mut self, chat_id: Uuid) {
-        self.chats.favorites.retain(|uid| *uid != chat_id);
+    fn unfavorite(&mut self, chat: &Chat) {
+        if let Some(index) = self.chats.favorites.iter().position(|uid| *uid == chat.id) {
+            self.chats.favorites.remove(index);
+        }
     }
 
     /// Toggles the specified chat as a favorite in the `State` struct. If the chat
@@ -162,8 +423,11 @@ impl State {
     /// is added to the list.
     fn toggle_favorite(&mut self, chat: &Chat) {
         let faves = &mut self.chats.favorites;
-        if let Some(index) = faves.iter().position(|uid| *uid == chat.id) {
-            faves.remove(index);
+
+        if faves.contains(&chat.id) {
+            if let Some(index) = faves.iter().position(|uid| *uid == chat.id) {
+                faves.remove(index);
+            }
         } else {
             faves.push(chat.id);
         }
@@ -171,9 +435,13 @@ impl State {
 
     /// Begins replying to a message in the specified chat in the `State` struct.
     fn start_replying(&mut self, chat: &Chat, message: &Message) {
-        if let Some(mut c) = self.chats.all.get_mut(&chat.id) {
-            c.replying_to = Some(message.to_owned());
-        }
+        let mut c = match self.chats.all.get_mut(&chat.id) {
+            Some(chat) => chat.clone(),
+            None => return,
+        };
+        c.replying_to = Some(message.to_owned());
+
+        *self.chats.all.get_mut(&chat.id).unwrap() = c;
     }
 
     /// Cancels a reply within a given chat on `State` struct.
@@ -182,9 +450,13 @@ impl State {
     ///
     /// * `chat` - The chat to stop replying to.
     fn cancel_reply(&mut self, chat: &Chat) {
-        if let Some(mut c) = self.chats.all.get_mut(&chat.id) {
-            c.replying_to = None;
-        }
+        let mut c = match self.chats.all.get_mut(&chat.id) {
+            Some(chat) => chat.clone(),
+            None => return,
+        };
+        c.replying_to = None;
+
+        *self.chats.all.get_mut(&chat.id).unwrap() = c;
     }
 
     /// Clear unreads  within a given chat on `State` struct.
@@ -204,13 +476,19 @@ impl State {
     /// # Arguments
     ///
     /// * `chat` - The chat to remove.
-    fn remove_sidebar_chat(&mut self, chat_id: Uuid) {
-        self.chats.in_sidebar.retain(|id| *id != chat_id);
+    fn remove_sidebar_chat(&mut self, chat: &Chat) {
+        if self.chats.in_sidebar.contains(&chat.id) {
+            let index = self
+                .chats
+                .in_sidebar
+                .iter()
+                .position(|x| *x == chat.id)
+                .unwrap();
+            self.chats.in_sidebar.remove(index);
+        }
 
-        if let Some(id) = self.chats.active {
-            if id == chat_id {
-                self.clear_active_chat();
-            }
+        if self.chats.active.is_some() && self.get_active_chat().unwrap_or_default().id == chat.id {
+            self.clear_active_chat();
         }
     }
 
@@ -264,6 +542,10 @@ impl State {
         self.friends.incoming_requests.push(identity.clone());
     }
 
+    fn toggle_popout(&mut self) {
+        self.ui.popout_player = !self.ui.popout_player;
+    }
+
     fn new_outgoing_request(&mut self, identity: &Identity) {
         self.friends.outgoing_requests.push(identity.clone());
     }
@@ -307,31 +589,33 @@ impl State {
                     .any(|participant| participant.did_key() == *did)
         });
 
-        // if no direct chat was found then return
-        let direct_chat = match direct_chat {
-            Some(c) => c,
-            None => return,
-        };
-
-        self.remove_sidebar_chat(direct_chat.id);
+        // Remove the chat from the sidebar
+        if let Some(chat) = direct_chat {
+            self.remove_sidebar_chat(chat);
+        }
 
         // If the friend's direct chat is currently the active chat, clear the active chat
-        if let Some(id) = self.chats.active {
-            if id == direct_chat.id {
-                self.clear_active_chat();
-            }
+        // TODO: Use `if let` statements
+        if self.chats.active.is_some()
+            && self.get_active_chat().unwrap_or_default().id == direct_chat.unwrap().id
+        {
+            self.clear_active_chat();
         }
 
         // Remove chat from favorites if it exists
-        self.unfavorite(direct_chat.id);
+        if let Some(direct_chat) = direct_chat {
+            if self.chats.favorites.contains(&direct_chat.id) {
+                self.unfavorite(direct_chat);
+            }
+        }
     }
 
     fn toggle_mute(&mut self) {
-        self.ui.toggle_muted();
+        self.ui.muted = !self.ui.muted;
     }
 
     fn toggle_silence(&mut self) {
-        self.ui.toggle_silenced();
+        self.ui.silenced = !self.ui.silenced;
     }
 
     /// Getters
@@ -353,15 +637,14 @@ impl State {
 
     /// Get the active chat on `State` struct.
     pub fn get_active_chat(&self) -> Option<Chat> {
-        self.chats
-            .active
-            .and_then(|uuid| self.chats.all.get(&uuid).cloned())
+        match self.chats.active {
+            Some(uuid) => self.chats.all.get(&uuid).cloned(),
+            None => None,
+        }
     }
 
     pub fn get_active_media_chat(&self) -> Option<&Chat> {
-        self.chats
-            .active_media
-            .and_then(|uuid| self.chats.all.get(&uuid))
+        self.chats.all.values().find(|&chat| chat.active_media)
     }
 
     pub fn get_chat_with_friend(&self, friend: &Identity) -> Chat {
@@ -442,7 +725,7 @@ impl State {
                 .username()
                 .chars()
                 .next()
-                .expect("all friends should have a username")
+                .unwrap()
                 .to_ascii_lowercase();
 
             friends_by_first_letter
@@ -459,10 +742,14 @@ impl State {
     }
 
     pub fn clear(&mut self) {
-        self.chats = chats::Chats::default();
-        self.friends = friends::Friends::default();
-        self.account = account::Account::default();
-        self.settings = settings::Settings::default();
+        self.chats = Chats::default();
+        self.friends = Friends::default();
+        self.account = Account::default();
+        self.settings = Settings::default();
+    }
+
+    pub fn toggle_sidebar(&mut self) {
+        self.ui.sidebar = !self.ui.sidebar;
     }
 
     pub fn has_toasts(&self) -> bool {
@@ -495,10 +782,6 @@ impl State {
     pub fn remove_toast(&mut self, id: &Uuid) {
         let _ = self.ui.toast_notifications.remove(id);
     }
-
-    pub fn remove_window(&mut self, id: WindowId) {
-        self.ui.remove_overlay(id);
-    }
 }
 
 impl State {
@@ -506,15 +789,6 @@ impl State {
         self.call_hooks(&action);
 
         match action {
-            Action::ClearPopout => {
-                self.ui.clear_popout();
-            }
-            Action::SetPopout(webview) => {
-                self.ui.set_popout(webview);
-            }
-            Action::AddOverlay(window) => {
-                self.ui.overlays.push(window);
-            }
             Action::SetOverlay(enabled) => self.toggle_overlay(enabled),
             // Action::Call(_) => todo!(),
             // Action::Hangup(_) => todo!(),
@@ -529,8 +803,8 @@ impl State {
             Action::ToggleMute => self.toggle_mute(),
             Action::ToggleSilence => self.toggle_silence(),
             Action::SetId(identity) => self.set_identity(&identity),
-            Action::SetActiveMedia(id) => self.set_active_media(id),
-            Action::DisableMedia => self.disable_media(),
+            Action::ToggleMedia(chat) => self.toggle_media(&chat),
+            Action::EndAll => self.disable_all_active_media(),
             Action::SetLanguage(language) => self.set_language(&language),
             Action::SendRequest(identity) => self.new_outgoing_request(&identity),
             Action::RequestAccepted(identity) => {
@@ -550,7 +824,7 @@ impl State {
             Action::Block(identity) => self.block(&identity),
             Action::UnBlock(identity) => self.unblock(&identity),
             Action::Favorite(chat) => self.favorite(&chat),
-            Action::UnFavorite(chat_id) => self.unfavorite(chat_id),
+            Action::UnFavorite(chat) => self.unfavorite(&chat),
             Action::ChatWith(chat) => {
                 // TODO: this should create a conversation in warp if one doesn't exist
                 self.set_active_chat(&chat);
@@ -559,8 +833,8 @@ impl State {
             Action::AddToSidebar(chat) => {
                 self.add_chat_to_sidebar(chat);
             }
-            Action::RemoveFromSidebar(chat_id) => {
-                self.remove_sidebar_chat(chat_id);
+            Action::RemoveFromSidebar(chat) => {
+                self.remove_sidebar_chat(&chat);
             }
             Action::NewMessage(_, _) => todo!(),
             Action::ToggleFavorite(chat) => {
@@ -582,6 +856,9 @@ impl State {
                 self.set_active_route(to);
             }
             // UI
+            Action::TogglePopout => {
+                self.toggle_popout();
+            }
             Action::SetTheme(theme) => self.set_theme(Some(theme)),
             Action::ClearTheme => self.set_theme(None),
         }
@@ -616,7 +893,12 @@ impl State {
     /// Saves the current state to disk.
     fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let serialized = serde_json::to_string(self)?;
-        let cache_path = UPLINK_PATH.join("state.json");
+        let cache_path = dirs::home_dir()
+            .unwrap_or_default()
+            .join(".uplink/state.json")
+            .into_os_string()
+            .into_string()
+            .unwrap_or_default();
 
         fs::write(cache_path, serialized)?;
         Ok(())
@@ -624,16 +906,19 @@ impl State {
 
     /// Loads the state from a file on disk, if it exists.
     pub fn load() -> Result<Self, std::io::Error> {
-        let cache_path = UPLINK_PATH.join("state.json");
-        let contents = match fs::read_to_string(cache_path) {
-            Ok(r) => r,
-            Err(_) => return Ok(State::default()),
-        };
-        let state: State = match serde_json::from_str(&contents) {
-            Ok(s) => s,
-            Err(_) => State::default(),
-        };
-        Ok(state)
+        let cache_path = dirs::home_dir()
+            .unwrap_or_default()
+            .join(".uplink/state.json")
+            .into_os_string()
+            .into_string()
+            .unwrap_or_default();
+        match fs::read_to_string(cache_path) {
+            Ok(contents) => {
+                let state: State = serde_json::from_str(&contents)?;
+                Ok(state)
+            }
+            Err(_) => Ok(generate_mock()),
+        }
     }
 
     pub fn mock() -> State {
@@ -641,16 +926,79 @@ impl State {
     }
 }
 
-// Define a struct to represent a group of messages from the same sender.
-pub struct MessageGroup {
-    pub sender: DID,
-    pub remote: bool,
-    pub messages: Vec<GroupedMessage>,
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub enum Action {
+    // UI
+    TogglePopout,
+    EndAll,
+    ToggleSilence,
+    ToggleMute,
+    SetOverlay(bool),
+    AddToastNotification(ToastNotification),
+    SetTheme(Theme),
+    ClearTheme,
+    // RemoveToastNotification,
+    ToggleMedia(Chat),
+    // Account
+    /// Sets the ID for the user.
+    SetId(Identity),
+
+    // Settings
+    /// Sets the selected language.
+    SetLanguage(String),
+
+    // Routes
+    /// Set the active route
+    Navigate(To),
+    // Requests
+    /// Send a new friend request
+    SendRequest(Identity),
+    /// To be fired when a friend request you sent is accepted
+    RequestAccepted(Identity),
+    /// Cancel an outgoing request
+    CancelRequest(Identity),
+
+    /// Handle a new incoming friend request
+    IncomingRequest(Identity),
+    /// Accept an incoming friend request
+    AcceptRequest(Identity),
+    /// Deny a incoming friend request
+    DenyRequest(Identity),
+
+    // Friends
+    RemoveFriend(Identity),
+    Block(Identity),
+    UnBlock(Identity),
+    /// Handles the display of "favorite" chats
+    Favorite(Chat),
+    UnFavorite(Chat),
+    /// Sets the active chat to a given chat
+    ChatWith(Chat),
+    /// Adds a chat to the sidebar
+    AddToSidebar(Chat),
+    /// Removes a chat from the sidebar, also removes the active chat if the chat being removed matches
+    RemoveFromSidebar(Chat),
+    /// Adds or removes a chat from the favorites page
+    ToggleFavorite(Chat),
+
+    // Messaging
+    /// Records a new message and plays associated notifications
+    NewMessage(Chat, Message),
+    /// React to a given message by ID
+    React(Chat, Message, Reaction),
+    /// Reply to a given message by ID
+    Reply(Chat, Message),
+    /// Prep the UI for a message reply.
+    StartReplying(Chat, Message),
+    /// Clears the reply for a given chat
+    CancelReply(Chat),
+    /// Sends a message to the given chat
+    Send(Chat, Message),
+    ClearUnreads(Chat),
 }
 
-// Define a struct to represent a message that has been placed into a group.
-pub struct GroupedMessage {
-    pub message: Message,
-    pub is_first: bool,
-    pub is_last: bool,
+impl Action {
+    fn compare_discriminant(&self, other: &Action) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
 }
