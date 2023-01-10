@@ -63,6 +63,7 @@ pub fn generate_mock() -> State {
             theme: None,
             // TODO: Until this is more functional, we should keep it disabled by default.
             enable_overlay: false,
+            sidebar: true,
         },
         account: Account {
             identity: me.clone(),

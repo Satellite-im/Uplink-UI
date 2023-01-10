@@ -21,6 +21,8 @@ pub struct UI {
     // overlays or other windows are created via DesktopContext::new_window. they are stored here so they can be closed later.
     #[serde(skip)]
     pub overlays: Vec<Weak<WebView>>,
+    #[serde(default)]
+    pub sidebar: bool,
 }
 
 impl Drop for UI {
@@ -87,6 +89,10 @@ impl UI {
             x.muted = !x.muted;
             x
         });
+    }
+
+    pub fn toggle_sidebar(&mut self) {
+        self.sidebar = !self.sidebar;
     }
 
     pub fn toggle_silenced(&mut self) {
